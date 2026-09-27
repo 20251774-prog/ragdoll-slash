@@ -21,10 +21,11 @@
     <button class="tb" data-k="r" aria-label="Right">&#9654;</button>
   </div>
   <div class="pad right">
+    <button class="tb mid" data-k="w">Swap</button>
     <button class="tb mid" data-k="d">Dash</button>
     <button class="tb mid" data-k="b">Block</button>
     <button class="tb" data-k="j">Jump</button>
-    <button class="tb big" data-k="a">Slash</button>
+    <button class="tb big" data-k="a" id="atkBtn">Slash</button>
   </div>
 </div>
 
@@ -35,6 +36,7 @@
     <button class="btn main" data-go="solo">Play vs computer</button>
     <button class="btn" data-go="host">Host a game</button>
     <button class="btn" data-go="join">Join a game</button>
+    <button class="btn" data-go="custom">Customise fighter</button>
     <div class="row">
       <button class="btn small" data-go="help">How to play with friends</button>
       <button class="btn small" data-go="controls">Controls</button>
@@ -46,11 +48,31 @@
 <div id="solo" class="screen hidden">
   <div class="panel">
     <h2>Play vs computer</h2>
-    <p>Pick how tough the computer is.</p>
+    <p>Game type</p>
+    <div class="row seg" id="soloMode">
+      <button class="btn small on" data-mode="1v1">1 vs 1</button>
+      <button class="btn small" data-mode="2v2">2 vs 2</button>
+      <button class="btn small" data-mode="ffa">Free for all</button>
+    </div>
+    <p id="soloModeHint" class="tiny">You against one computer knight.</p>
+    <p>How tough is the computer?</p>
     <button class="btn" data-diff="easy">Easy</button>
     <button class="btn main" data-diff="normal">Normal</button>
     <button class="btn" data-diff="hard">Hard</button>
     <button class="btn small back" data-go="menu">Back</button>
+  </div>
+</div>
+
+<div id="custom" class="screen hidden">
+  <div class="panel wide">
+    <h2>Customise fighter</h2>
+    <div class="cols top">
+      <div class="prev"><canvas id="prevCv" width="360" height="450"></canvas>
+        <div class="stats"><div>Speed <span class="bar"><i id="stSpeed"></i></span></div><div>Armour <span class="bar"><i id="stProt"></i></span></div></div>
+      </div>
+      <div class="side opts" id="customOpts"></div>
+    </div>
+    <button class="btn main" data-go="menu">Done</button>
   </div>
 </div>
 
@@ -63,6 +85,8 @@
         <video id="hostVideo" class="hidden" playsinline muted></video>
       </div>
       <div class="side">
+        <div class="row seg" id="hostMode"><button class="btn small on" data-mode="teams">Teams 2 vs 2</button><button class="btn small" data-mode="ffa">Free for all</button></div>
+        <label class="chk"><input type="checkbox" id="hostFill" checked> Fill empty spots with computer fighters</label>
         <p id="hostStep">Getting ready…</p>
         <button id="hostScan" class="btn main hidden">Scan friend's code</button>
         <button id="hostCopy" class="btn small hidden">Copy my code as text</button>
@@ -119,9 +143,10 @@
 <div id="controls" class="screen hidden">
   <div class="panel wide">
     <h2>Controls</h2>
-    <p><b>Phone:</b> hold the phone sideways. Left side: ◀ ▶ to move. Right side: <b>Slash</b> to swing (tap again quickly for a combo), <b>Jump</b>, <b>Block</b> (hold, face the enemy), <b>Dash</b>.</p>
-    <p><b>Keyboard:</b> A / D or arrows to move, W / Space / ↑ jump, J swing, K block, L or Shift dash, Esc pause.</p>
-    <p>Hit the head for extra damage. First to win 3 rounds wins the match.</p>
+    <p><b>Phone:</b> hold the phone sideways. Left side: ◀ ▶ to move. Right side: <b>Slash</b> to swing (tap again quickly for a combo), <b>Jump</b>, <b>Block</b> (hold, face the enemy), <b>Dash</b>, <b>Swap</b> to change weapon.</p>
+    <p><b>Guns and bow:</b> the big button becomes <b>Fire</b>. Tap it to shoot at the nearest enemy, or hold it and drag to aim, then let go. The rifle keeps firing while you hold. Hold to draw the bow, then let go. Reloading is automatic.</p>
+    <p><b>Keyboard:</b> A / D or arrows move, W / Space / ↑ jump, J attack or fire, K block, L or Shift dash, Q swap, R reload, Esc pause. The mouse aims and clicks to fire.</p>
+    <p>Armour soaks up damage until it breaks off. Then that body part gets hurt much more. Heavy armour is slower. Hit the head for extra damage. First to 3 round wins takes the match.</p>
     <button class="btn small back" data-go="menu">Back</button>
   </div>
 </div>

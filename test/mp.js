@@ -1,7 +1,10 @@
 // Multiplayer test: host + N joiners in separate browser contexts, pairing via real QR images fed to a fake camera.
 const { chromium } = require('playwright-core');
-const N = parseInt(process.argv[2] || '1', 10);
-const URL = process.argv[3] || 'http://localhost:8765/';
+const N = parseInt(process.argv[2] || '3', 10);
+const MODE = process.argv[3] || 'teams'; // teams | ffa
+const FILL = (process.argv[4] || '1') === '1';
+const URL = process.argv[5] || 'http://localhost:8765/';
+const WEAP = ['katana', 'rifle', 'bow'];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function waitFor(p, fn, ms, label) {
   const t0 = Date.now();
@@ -31,13 +34,17 @@ async function waitFor(p, fn, ms, label) {
   };
   const host = await mk('host');
   const joiners = [];
+  await host.evaluate(() => RS.setLoadout(Object.assign(RS.loadout, { name: 'Paul', primary: 'greatsword', secondary: 'pistol' })));
   await host.click('text=Host a game');
+  await host.click(`#hostMode [data-mode="${MODE}"]`);
+  await host.evaluate((f) => { const c = document.getElementById('hostFill'); if (c.checked !== f) c.click(); }, FILL);
   for (let k = 0; k < N; k++) {
     if (k > 0) await host.click('#hostAdd');
     const hcode = await waitFor(host, () => !document.getElementById('hostScan').classList.contains('hidden') && RS.hostCode, 15000, 'host code');
     const hqr = await host.evaluate(() => document.getElementById('hostQR').toDataURL());
     console.log(`slot ${k + 1}: host offer code ${hcode.length} chars`);
     const j = await mk('join' + (k + 1)); joiners.push(j);
+    await j.evaluate(([k, w]) => RS.setLoadout(Object.assign(RS.loadout, { name: 'Phone ' + (k + 2), primary: w, secondary: 'longsword', color: k + 4 })), [k, WEAP[k % 3]]);
     await j.evaluate((d) => { window.__feed = d; }, hqr);
     await j.click('text=Join a game');
     const jcode = await waitFor(j, () => RS.joinCode, 20000, 'joiner scanned host QR + made answer');
@@ -54,6 +61,14 @@ async function waitFor(p, fn, ms, label) {
   await host.click('#hostStart');
   for (const j of joiners) await waitFor(j, () => RS.mode === 'client' && RS.snaps.length > 1, 10000, 'client receives snapshots');
   console.log('game started; clients receive snapshots');
+  const hp = await host.evaluate(() => ({ teams: RS.sim.teams, tmode: RS.sim.snapshot().tmode, pl: RS.sim.players.map((p) => `${p.name}[team ${p.team}${p.cpu ? ', cpu' : ''}] ${p.loadout.primary}/${p.loadout.secondary}`) }));
+  console.log('host sim players:', JSON.stringify(hp));
+  const cm = await joiners[0].evaluate(() => RS.meta.map((m) => `${m.name}:${m.teams ? 'team ' + m.team : 'ffa'}`));
+  console.log('client 1 sees:', cm.join(', '));
+  const expectN = FILL ? 4 : N + 1;
+  const loadoutsOk = hp.pl.length === expectN && joiners.every((_, k) => hp.pl[k + 1].startsWith('Phone ' + (k + 2)) && hp.pl[k + 1].includes(WEAP[k % 3]));
+  const modeOk = MODE === 'teams' ? !!hp.tmode : !hp.tmode;
+  console.log(`CHECK players/loadouts from phones reached host: ${loadoutsOk ? 'PASS' : 'FAIL'}; mode ${MODE}: ${modeOk ? 'PASS' : 'FAIL'}`);
   await sleep(2200);
   // sync check: compare torso x of each fighter host vs client
   const hx = await host.evaluate(() => RS.sim.snapshot().f.map((f) => f.p[0].toFixed(2)));
@@ -76,13 +91,13 @@ async function waitFor(p, fn, ms, label) {
     for (const [i, j] of joiners.entries()) await j.evaluate((slot) => {
       const s = RS.snaps[RS.snaps.length - 1]; if (!s) return;
       const me = s.f[slot]; let best = null, bd = 1e9;
-      s.f.forEach((f, k) => { if (k !== slot && (f.fl & 1)) { const d = Math.abs(f.p[0] - me.p[0]); if (d < bd) { bd = d; best = f; } } });
+      s.f.forEach((f, k) => { if (k !== slot && (f.fl & 1) && !(RS.meta[k].teams && RS.meta[k].team === RS.meta[slot].team)) { const d = Math.abs(f.p[0] - me.p[0]); if (d < bd) { bd = d; best = f; } } });
       RS.input.l = RS.input.r = 0;
-      if (best) { const dx = best.p[0] - me.p[0]; if (Math.abs(dx) > 1.5) (dx > 0 ? RS.input.r = 1 : RS.input.l = 1); else if (Math.random() < 0.5) RS.input.a++; }
+      if (best) { const dx = best.p[0] - me.p[0]; if (Math.abs(dx) > 1.5) (dx > 0 ? RS.input.r = 1 : RS.input.l = 1); else if (Math.random() < 0.5) RS.input.a++; if (Math.abs(dx) < 9 && Math.random() < 0.3) RS.input.a++; }
     }, i + 1);
     if (!shot) {
       const hit = await joiners[0].evaluate(() => { const s = RS.snaps[RS.snaps.length - 1]; return s && s.f.some((f) => f.fl & 4) && s.f.some((f) => f.h < 80); });
-      if (hit) { await joiners[0].screenshot({ path: '../screenshots/multiplayer-client-view.png' }); shot = true; }
+      if (hit) { await joiners[0].screenshot({ path: `../screenshots/v2-mp-${MODE}-client-view.png` }); shot = true; }
     }
     res = await joiners[0].evaluate(() => { const s = RS.snaps[RS.snaps.length - 1]; return { sc: s.sc, st: s.st, h: s.f.map((f) => Math.round(f.h)), msg: s.msg }; });
     if (res.sc.reduce((a, c) => a + c, 0) >= 1 && res.st === 'ko') break;
@@ -91,9 +106,10 @@ async function waitFor(p, fn, ms, label) {
   const hs = await host.evaluate(() => ({ sc: RS.sim.scores, st: RS.sim.state }));
   console.log('client view after fight:', JSON.stringify(res), ' host:', JSON.stringify(hs));
   await sleep(600);
-  await host.screenshot({ path: `../screenshots/multiplayer-host-view-${N + 1}p.png` });
+  await host.screenshot({ path: `../screenshots/v2-mp-${MODE}-host-view-${N + 1}phones.png` });
+  const hpN = await host.evaluate(() => RS.sim.players.length);
   const errs = [host, ...joiners].flatMap((p) => p.errs);
   console.log('errors:', errs.length ? errs : 'none');
-  console.log(res && res.sc.reduce((a, c) => a + c, 0) >= 1 ? 'RESULT: PASS - round resolved and synced' : 'RESULT: FAIL');
+  console.log(res && res.sc.reduce((a, c) => a + c, 0) >= 1 && loadoutsOk && modeOk && !errs.length ? 'RESULT: PASS - round resolved and synced' : 'RESULT: FAIL');
   await b.close();
 })().catch((e) => { console.error('FAILED', e); process.exit(1); });

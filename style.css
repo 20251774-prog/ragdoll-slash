@@ -36,6 +36,7 @@ textarea{width:100%;height:70px;font-size:12px;border-radius:8px;padding:6px;use
 .pad{position:absolute;bottom:calc(14px + env(safe-area-inset-bottom));display:flex;gap:14px;align-items:flex-end}
 .pad.left{left:calc(18px + env(safe-area-inset-left))}
 .pad.right{right:calc(18px + env(safe-area-inset-right));display:grid;grid-template-columns:auto auto auto;grid-template-rows:auto auto;gap:10px}
+.pad.right [data-k=w]{grid-column:1;grid-row:1;align-self:end}
 .pad.right [data-k=d]{grid-column:1;grid-row:2;align-self:end}
 .pad.right [data-k=b]{grid-column:2;grid-row:1;align-self:end}
 .pad.right [data-k=j]{grid-column:2;grid-row:2}
@@ -45,3 +46,19 @@ textarea{width:100%;height:70px;font-size:12px;border-radius:8px;padding:6px;use
 #rotate div{font-size:22px}
 
 @media (max-height:460px){.panel{padding:10px 16px}h1{font-size:30px}.sub{margin:0 0 6px}.btn{padding:9px 10px;font-size:16px;margin:6px 0}.btn.small{padding:7px;font-size:14px}.tiny{margin:4px 0}.steps{line-height:1.3;font-size:14px}}
+
+.seg{gap:6px}.seg .btn{margin:4px 0;opacity:.75}.seg .btn.on{opacity:1;background:linear-gradient(180deg,#e0782a,#a8401a);border-color:#ffc070;color:#fff}
+.chk{display:block;margin:6px 0;font-size:14px}
+.cols.top{align-items:flex-start}
+.prev{flex:0 0 auto;width:min(38vh,220px)}
+.prev canvas{width:100%;border-radius:10px;border:2px solid #7a5a2a;display:block}
+.stats{font-size:13px;margin-top:6px}.stats div{display:flex;align-items:center;gap:6px;margin:3px 0}
+.bar{flex:1;height:8px;background:rgba(0,0,0,.5);border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,#ffc070,#e0782a)}
+.opts{max-height:62vh;overflow:auto;padding-right:4px}
+.opt{margin:4px 0 8px}.opt>b{display:block;font-size:13px;margin-bottom:3px;color:#f2d38a}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{padding:6px 9px;border-radius:8px;border:2px solid #7a5a2a;background:#3a2820;color:#f4ead8;font-size:13px;font-weight:700}
+.chip.on{background:#e0782a;border-color:#ffc070;color:#fff}
+.sw{width:30px;height:30px;border-radius:50%;border:3px solid rgba(255,255,255,.25)}
+.sw.on{border-color:#fff;box-shadow:0 0 0 2px #e0782a}
+.opts input[type=text]{width:100%;padding:7px;border-radius:8px;border:2px solid #7a5a2a;background:#2a1c18;color:#fff;font-size:15px;user-select:text;-webkit-user-select:text}
