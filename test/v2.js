@@ -24,7 +24,7 @@ const hookEvents = (p) => p.evaluate(() => { window.EVC = {}; const s = RS.sim, 
   await p.click('#customOpts .opt[data-key=primary] [data-v="greatsword"]');
   await p.click('#customOpts .opt[data-key=secondary] [data-v="shotgun"]');
   await p.fill('#loName', 'Paul');
-  await sleep(300); await p.screenshot({ path: '../screenshots/v2-customise.png' });
+  await sleep(300); await p.screenshot({ path: '/tmp/v2-customise.png' });
   await p.reload(); await sleep(800);
   const lo = await p.evaluate(() => RS.loadout);
   ok('customise saved in localStorage and restored after reload', lo.name === 'Paul' && lo.primary === 'greatsword' && lo.secondary === 'shotgun' && lo.color === 4 && lo.legs === 3, lo);
@@ -76,7 +76,7 @@ const hookEvents = (p) => p.evaluate(() => { window.EVC = {}; const s = RS.sim, 
   await sleep(400);
   const wk = await p.evaluate(() => ({ key: RS.sim.fighters[0].ws[RS.sim.fighters[0].slot].key, label: document.getElementById('atkBtn').textContent }));
   ok('Swap button changes weapon (rifle -> shotgun)', wk.key === 'shotgun', wk);
-  for (let i = 0; i < 6; i++) { await pe('pointerdown', cx, cy); await sleep(60); await pe('pointerup', cx, cy); await sleep(850); if (i === 1) await shot('gun'); }
+  for (let i = 0; i < 6; i++) { await p.evaluate(() => { RS.sim.fighters[1].health = 100; }); await pe('pointerdown', cx, cy); await sleep(60); await pe('pointerup', cx, cy); await sleep(850); if (i === 1) await shot('gun'); }
   const e2 = await p.evaluate(() => ({ ev: EVC, ammo: RS.sim.fighters[0].ws[1].ammo, rl: RS.sim.fighters[0].reloadT }));
   ok('shotgun: tap fires pellets; empties and reloads', (e2.ev.shotgun || 0) >= 4 && (e2.ev.reload || 0) >= 1, e2);
   // gunfight candidates: both sides shooting
@@ -89,15 +89,15 @@ const hookEvents = (p) => p.evaluate(() => { window.EVC = {}; const s = RS.sim, 
     RS.sim.players[1].cpu = 'easy'; RS.sim.players[1].loadout = Object.assign({}, RS.sim.players[1].loadout, { primary: 'rifle', secondary: 'rifle' }); RS.sim.restartMatch(); });
   await hookEvents(p);
   await waitFor(p, () => RS.sim.state === 'fight', 5000);
-  let arrowSeen = 0;
+  let arrowSeen = 0, maxDraw = 0;
   for (let k = 0; k < 5; k++) {
     await p.evaluate(() => RS.attackDown()); await sleep(750);
-    const drawn = await p.evaluate(() => RS.sim.fighters[0].draw);
+    const drawn = await p.evaluate(() => RS.sim.fighters[0].draw); maxDraw = Math.max(maxDraw, drawn);
     if (k === 0) await shot('bowdraw');
     await p.evaluate(() => RS.attackUp());
     for (let i = 0; i < 8; i++) { await sleep(40); const a = await p.evaluate(() => RS.lastSnap.pr.some((q) => q[3] === 1 && Math.abs(q[1]) > 0.3)); if (a) { arrowSeen++; await shot('bow'); break; } }
     await sleep(600);
-    if (k === 0) ok('bow: holding draws the string', drawn > 0.8, { drawn });
+    if (k === 4) ok('bow: holding draws the string (best of 5 draws; a rifle hit can interrupt one)', maxDraw > 0.8, { maxDraw });
   }
   const eb = await p.evaluate(() => ({ ev: EVC, h: RS.sim.fighters[1].health, arm: RS.sim.fighters[1].pieces.map((x) => Math.round(x.hp)) }));
   ok('bow: arrows fly as physics projectiles and hit', (eb.ev.bow || 0) >= 3 && arrowSeen >= 2 && ((eb.ev.armor || 0) + (eb.ev.blood || 0)) >= 1, eb);

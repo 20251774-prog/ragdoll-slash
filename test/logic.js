@@ -8,21 +8,29 @@ const { chromium } = require('playwright-core');
     ['1v1 hard vs easy', false, [['hard', {}], ['easy', {}]]],
     ['1v1 guns', false, [['normal', { primary: 'pistol', secondary: 'rifle' }], ['normal', { primary: 'shotgun', secondary: 'axe' }]]],
     ['1v1 bow vs spear', false, [['normal', { primary: 'bow', secondary: 'longsword' }], ['normal', { primary: 'spear', secondary: 'bow' }]]],
+    ['1v1 axe vs katana hard', false, [['hard', { primary: 'axe', secondary: 'pistol' }], ['hard', { primary: 'katana', secondary: 'bow' }]]],
+    ['1v1 mace vs spear easy', false, [['easy', { primary: 'mace', secondary: 'shotgun' }], ['easy', { primary: 'spear', secondary: 'rifle' }]]],
     ['2v2 teams random', true, [['normal', 'R'], ['normal', 'R'], ['normal', 'R'], ['normal', 'R']]],
+    ['2v2 teams hard', true, [['hard', 'R'], ['hard', 'R'], ['hard', 'R'], ['hard', 'R']]],
     ['FFA 4 random', false, [['normal', 'R'], ['normal', 'R'], ['normal', 'R'], ['normal', 'R']]],
+    ['FFA 3 random', false, [['normal', 'R'], ['hard', 'R'], ['easy', 'R']]],
   ];
+  let allOk = true;
   for (const [name, teams, ps] of cases) {
     const r = await p.evaluate(([teams, ps]) => {
       const players = ps.map(([d, lo], i) => ({ name: 'P' + i, cpu: d, team: i % 2, loadout: lo === 'R' ? RSGame.randomLoadout() : Object.assign({}, RSGame.DEFAULT_LOADOUT, lo) }));
       const s = new RSGame.Sim(players, { teams });
-      const cnt = {}; let t = 0, ff = 0;
+      const cnt = {}; let t = 0, ff = 0, okN = 0, tiltN = 0;
       while (s.state !== 'over' && t < 900) { s.update(1 / 60); t += 1 / 60;
+        if (s.state !== 'finish') for (const f of s.fighters) if (f.alive && f.pst === 'ok' && f.grounded && f.rollT <= 0 && !f.kick) { okN++; const a = f.b[0].getAngle(); if (Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) > 0.45) tiltN++; }
         for (const e of s.drainEvents()) cnt[e[0]] = (cnt[e[0]] || 0) + 1; s.drainNetEvents();
         for (const f of s.fighters) { const q = f.b[0].getPosition(); if (!isFinite(q.x) || Math.abs(q.x) > 12) return 'BAD POS'; }
       }
-      return { t: t.toFixed(0), scores: s.scores, state: s.state, ev: cnt, lo: players.map(p => p.loadout.primary + '/' + p.loadout.secondary) };
+      return { t: t.toFixed(0), scores: s.scores, state: s.state, uprightPct: +(100 - 100 * tiltN / Math.max(1, okN)).toFixed(1), ev: cnt, lo: players.map(p => p.loadout.primary + '/' + p.loadout.secondary) };
     }, [teams, ps]);
-    console.log(name, JSON.stringify(r));
+    const good = typeof r === 'object' && r.state === 'over' && r.uprightPct > 95;
+    if (!good) allOk = false;
+    console.log(good ? 'PASS' : 'FAIL', name, JSON.stringify(r));
   }
   // friendly fire check: teammates only, no enemies near -> nobody on team takes damage from teammate
   const ff = await p.evaluate(() => {
@@ -34,5 +42,8 @@ const { chromium } = require('playwright-core');
     return { mate: f1.health, enemy: s.fighters[2].health };
   });
   console.log('friendly fire test (teammate health should be 100):', JSON.stringify(ff));
-  console.log('errors', errs); await b.close();
+  if (ff.mate !== 100) allOk = false;
+  console.log('errors', errs); if (errs.length) allOk = false;
+  console.log(allOk ? 'RESULT: PASS - every mode finishes a match; conscious standing fighters upright >95% of the time; no friendly fire' : 'RESULT: FAIL');
+  await b.close();
 })();

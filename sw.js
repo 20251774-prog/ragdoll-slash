@@ -1,4 +1,4 @@
-const CACHE = 'ragdoll-slash-v2';
+const CACHE = 'ragdoll-slash-v3';
 const FILES = ['./', 'index.html', 'style.css', 'manifest.webmanifest',
   'js/game.js', 'js/render.js', 'js/net.js', 'js/main.js',
   'lib/planck.min.js', 'lib/lz-string.min.js', 'lib/jsQR.js', 'lib/qrcode.js',

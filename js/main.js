@@ -1,4 +1,4 @@
-/* Ragdoll Slash v2 - app glue: menus, customise, input (incl. aim/fire), game loop, host/client sync */
+/* Ragdoll Slash v3 - app glue: menus, customise, input (incl. aim/fire), game loop, host/client sync */
 (function () {
   'use strict';
   const R = window.RSRender, Net = window.RSNet, G = window.RSGame, Sim = G.Sim;
@@ -9,7 +9,8 @@
   let mode = null, sim = null, meta = [], paused = false, last = performance.now(), sendAcc = 0, overShown = false;
   let hostPeers = {}, hostInputs = {}, hostLoadouts = {}, slotOrder = [], nextSlot = 1, curPeer = null, scanner = null;
   let clientPeer = null, snaps = [], idle = null, lastSnap = null;
-  let soloMode = '1v1', hostMode = 'teams', reloading = false;
+  let soloMode = '1v1', hostMode = 'teams', reloading = false, fatShown = false;
+  R.touch = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
 
   // ---------- loadout ----------
   function loadLoadout() { try { return G.sanitizeLoadout(JSON.parse(localStorage.getItem('rs-loadout') || 'null')); } catch (e) { return G.sanitizeLoadout(null); } }
@@ -42,6 +43,9 @@
       d.dataset.key = key;
     };
     wp('primary', 'First weapon (you start with this)'); wp('secondary', 'Second weapon (tap Swap)');
+    const sd = row('Shield (one-handed weapons only)', '<div class="chips">' + G.SHIELDS.map((s, i) => '<button class="chip" data-v="' + i + '">' + s.name + '</button>').join('') + '</div><div class="shnote" id="shNote"></div>');
+    sd.querySelectorAll('.chip').forEach((b) => b.addEventListener('click', () => { loadout.shield = +b.dataset.v; saveLoadout(); refreshCustom(); }));
+    sd.dataset.key = 'shield';
     refreshCustom();
   }
   function refreshCustom() {
@@ -50,6 +54,9 @@
       d.querySelectorAll('[data-v]').forEach((b) => b.classList.toggle('on', String(loadout[k]) === b.dataset.v));
     });
     R.drawPreview($('prevCv'), loadout);
+    const sn = $('shNote');
+    if (sn) { const one = !!G.WEAPONS[loadout.primary].one, S = G.SHIELDS[loadout.shield | 0];
+      sn.textContent = !(loadout.shield | 0) ? 'No shield.' : !one ? G.WEAPONS[loadout.primary].name + ' needs both hands: the shield stays on your back until you swap to a one-handed weapon.' : S.name + ' shield: ' + S.hp + ' health, ' + Math.round(S.cover * 100) + '% of frontal blows caught when raised.'; }
     const st = G.loadoutStats(loadout);
     $('stSpeed').style.width = Math.round(st.speed * 100) + '%';
     $('stProt').style.width = Math.round(st.prot / 0.65 * 100) + '%';
@@ -91,18 +98,18 @@
   }
 
   // ---------- input ----------
-  const input = { l: 0, r: 0, b: 0, a: 0, j: 0, d: 0, h: 0, am: null, w: 0, rl: 0 };
+  const input = { l: 0, r: 0, b: 0, a: 0, j: 0, d: 0, h: 0, am: null, w: 0, rl: 0, k: 0, fx: 0 };
   const held = { l: new Set(), r: new Set(), b: new Set() };
   function myWeapon() { const f = lastSnap && lastSnap.f[R.me]; return f ? G.WEAPONS[G.WLIST[f.wp | 0]] : G.WEAPONS[loadout.primary]; }
   function attackDown() { const W = myWeapon(); input.h = 1; if (W.kind === 'melee') input.a++; }
   function attackUp() { const W = myWeapon(); if (input.h && W.kind === 'gun' && !W.auto) input.a++; input.h = 0; }
   function press(k, src) {
     if (k === 'a') attackDown();
-    else if (k === 'j' || k === 'd' || k === 'w' || k === 'rl') input[k]++;
+    else if (k === 'j' || k === 'd' || k === 'w' || k === 'rl' || k === 'k' || k === 'fx') input[k]++;
     else { held[k].add(src); input[k] = 1; }
   }
   function release(k, src) { if (k === 'a') attackUp(); else if (held[k]) { held[k].delete(src); input[k] = held[k].size ? 1 : 0; } }
-  const KEYS = { ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r', ArrowUp: 'j', KeyW: 'j', Space: 'j', KeyJ: 'a', KeyZ: 'a', KeyK: 'b', KeyX: 'b', KeyL: 'd', ShiftLeft: 'd', ShiftRight: 'd', KeyC: 'd', KeyQ: 'w', KeyR: 'rl' };
+  const KEYS = { ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r', ArrowUp: 'j', KeyW: 'j', Space: 'j', KeyJ: 'a', KeyZ: 'a', KeyK: 'b', KeyX: 'b', KeyL: 'd', ShiftLeft: 'd', ShiftRight: 'd', KeyC: 'd', KeyQ: 'w', KeyR: 'rl', KeyF: 'k', KeyV: 'k', KeyE: 'fx' };
   addEventListener('keydown', (e) => {
     if (e.code === 'Escape' && mode === 'solo') { togglePause(); return; }
     const k = KEYS[e.code]; if (!k || !mode) return;
@@ -181,7 +188,7 @@
     meta = metaFrom(players, teams);
     mode = 'solo'; R.me = 0; R.reset(); paused = false; overShown = false; resetInput(); show(null);
   }
-  function resetInput() { Object.assign(input, { l: 0, r: 0, b: 0, h: 0, am: null, a: 0, j: 0, d: 0, w: 0, rl: 0 }); held.l.clear(); held.r.clear(); held.b.clear(); R.aim.on = false; }
+  function resetInput() { Object.assign(input, { l: 0, r: 0, b: 0, h: 0, am: null, a: 0, j: 0, d: 0, w: 0, rl: 0, k: 0, fx: 0 }); held.l.clear(); held.r.clear(); held.b.clear(); R.aim.on = false; }
 
   // ---------- host ----------
   async function startHostLobby() {
@@ -336,14 +343,14 @@
 
   const q3 = (v) => Math.round(v * 1000);
   function encodeSnap(s, ev) {
-    return { t: 's', f: s.f.map((f) => ({ p: f.p.map(q3), h: Math.round(f.h * 10) / 10, fa: f.fa, fl: f.fl, ar: f.ar, wp: f.wp, am: f.am, rl: f.rl, dr: f.dr, sd: f.sd })),
+    return { t: 's', f: s.f.map((f) => ({ p: f.p.map(q3), h: Math.round(f.h * 10) / 10, fa: f.fa, fl: f.fl, ar: f.ar, wp: f.wp, am: f.am, rl: f.rl, dr: f.dr, sd: f.sd, sh: f.sh, hu: f.hu })),
       pr: s.pr.map((q) => [q3(q[0]), q3(q[1]), q3(q[2]), q[3]]), db: s.db.map((d) => [q3(d[0]), q3(d[1]), q3(d[2]), d[3], d[4], d[5], Math.round(d[6] * 100) / 100]),
-      sc: s.sc, st: s.st, tm: s.tm, rd: s.rd, msg: s.msg, ts: s.ts, champ: s.champ, kf: s.kf, tmode: s.tmode, ev };
+      sc: s.sc, st: s.st, tm: s.tm, rd: s.rd, msg: s.msg, ts: s.ts, champ: s.champ, kf: s.kf, tmode: s.tmode, fin: s.fin, ban: s.ban, ev };
   }
   function decodeSnap(m) {
     return { f: m.f.map((f) => Object.assign({}, f, { p: f.p.map((v) => v / 1000) })),
       pr: (m.pr || []).map((q) => [q[0] / 1000, q[1] / 1000, q[2] / 1000, q[3]]), db: (m.db || []).map((d) => [d[0] / 1000, d[1] / 1000, d[2] / 1000, d[3], d[4], d[5], d[6]]),
-      sc: m.sc, st: m.st, tm: m.tm, rd: m.rd, msg: m.msg, ts: m.ts, champ: m.champ, kf: m.kf, tmode: m.tmode };
+      sc: m.sc, st: m.st, tm: m.tm, rd: m.rd, msg: m.msg, ts: m.ts, champ: m.champ, kf: m.kf, tmode: m.tmode, fin: m.fin || null, ban: m.ban || 0 };
   }
   function lerpSnap(a, b, t) {
     if (!a || a.f.length !== b.f.length) return b;
@@ -402,6 +409,9 @@
       R.draw(s, idle.meta, dt);
     }
     if (snap) { lastSnap = snap; if (mode) updateAtkLabel(); }
+    { const me = snap && mode && snap.f[R.me], fin = snap && snap.fin;
+      const showFat = !!(me && fin && snap.st === 'finish' && !fin[3] && (me.fl & 1) && (me.sd | 0) === fin[1]);
+      if (showFat !== fatShown) { fatShown = showFat; $('fatBtn').classList.toggle('hidden', !showFat); } }
     if (snap && snap.st === 'over' && !overShown && mode) {
       overShown = true;
       setTimeout(() => {

@@ -108,8 +108,44 @@ async function waitFor(p, fn, ms, label) {
   await sleep(600);
   await host.screenshot({ path: `../screenshots/v2-mp-${MODE}-host-view-${N + 1}phones.png` });
   const hpN = await host.evaluate(() => RS.sim.players.length);
+  // v3: FINISH HIM + fatality over the network. Host-authoritative: the host decides the KO, phone 1's team wins,
+  // phone 1 taps its FATALITY button, the host runs the cinematic and every phone sees it.
+  let fatOk = false;
+  if (!hs.st || hs.st !== 'over') {
+    await waitFor(host, () => RS.sim.state === 'fight', 15000, 'next round starts');
+    for (const j of joiners) await j.evaluate(() => { RS.input.l = RS.input.r = 0; });
+    const setup = await host.evaluate(() => {
+      const s = RS.sim, me = s.fighters[1], side = me.side, V = planck.Vec2;
+      s.players.forEach((p, k) => { if (k !== 1 && s.fighters[k].side === side) { p.cpu = null; } });
+      s.players.forEach((p, k) => { if (k !== 1 && s.fighters[k].side === side && p.slot > 0) p.slot = -p.slot; }); // mute teammates' phone inputs for the test
+      s.fighters.forEach((f, k) => { if (k !== 1 && f.side === side) s.inputs[k] = { l: 0, r: 0, b: 0, a: 0, j: 0, d: 0, w: 0, rl: 0, k: 0, fx: 0 }; });
+      const foes = s.fighters.filter((f) => f.alive && f.side !== side), last = foes.pop();
+      foes.forEach((f) => { f.health = 0; s.ko(f, 1, 0, f.b[0].getPosition()); });
+      const mx = me.b[0].getPosition().x, tx = Math.max(-6, Math.min(6, mx + (mx < 0 ? 1.5 : -1.5))), dx = tx - last.b[0].getPosition().x;
+      for (const bb of last.b) { const q = bb.getPosition(); bb.setTransform(V(q.x + dx, q.y), bb.getAngle()); bb.setLinearVelocity(V(0, 0)); }
+      last.health = 0; s.ko(last, 1, 0, last.b[0].getPosition());
+      return { state: s.state, victim: last.id, side, winnerWeapon: s.weapon(me).key };
+    });
+    console.log('host forced the round-deciding KO:', JSON.stringify(setup));
+    const cseen = await waitFor(joiners[0], () => { const s = RS.snaps[RS.snaps.length - 1]; return s && s.fin && !s.fin[3] && !document.getElementById('fatBtn').classList.contains('hidden') && JSON.stringify(s.fin); }, 5000, 'phone 1 sees FINISH HIM + its Fatality button');
+    const other = joiners[1] ? await joiners[1].evaluate(() => ({ fin: !!(RS.snaps[RS.snaps.length - 1] || {}).fin, btn: !document.getElementById('fatBtn').classList.contains('hidden') })) : null;
+    console.log('phone 1 sees fin', cseen, '; phone 2 (other side or teammate) sees', JSON.stringify(other));
+    await joiners[0].screenshot({ path: '../screenshots/v3-mp-finish-client.png' });
+    const fb = joiners[0].locator('#fatBtn');
+    await fb.dispatchEvent('pointerdown', { pointerId: 11, pointerType: 'touch', isPrimary: true, bubbles: true }); await fb.dispatchEvent('pointerup', { pointerId: 11, pointerType: 'touch', isPrimary: true, bubbles: true });
+    const hfat = await waitFor(host, () => RS.sim.fin && RS.sim.fin.fat && { fat: RS.sim.fin.fat, by: RS.sim.fin.by }, 4000, 'host runs the fatality for phone 1');
+    console.log('host fatality started:', JSON.stringify(hfat));
+    let mid = false;
+    const cfat = await waitFor(joiners[0], () => { const s = RS.snaps[RS.snaps.length - 1]; if (s && s.fin && s.fin[4]) window.__sawHit = 1; return s && (s.ban || s.msg === 'FATALITY!') && { ban: s.ban, msg: s.msg, sawHit: !!window.__sawHit }; }, 12000, 'phone 1 sees FATALITY');
+    await joiners[0].screenshot({ path: '../screenshots/v3-mp-fatality-client.png' });
+    const others = await Promise.all(joiners.slice(1).map((j) => j.evaluate(() => { const s = RS.snaps[RS.snaps.length - 1]; return s && (s.ban || s.msg === 'FATALITY!'); })));
+    const hmsg = await host.evaluate(() => ({ msg: RS.sim.msg, st: RS.sim.state, victim: RS.sim.fighters.find((f) => f.pst === 'ko' && !f.alive) ? 1 : 0 }));
+    console.log('phone 1 view:', JSON.stringify(cfat), ' other phones see FATALITY:', others, ' host:', JSON.stringify(hmsg));
+    fatOk = hfat.by === 1 && !!cfat && others.every(Boolean) && hmsg.msg === 'FATALITY!';
+    console.log('CHECK multiplayer fatality (phone taps FATALITY, host runs it, all phones see it):', fatOk ? 'PASS' : 'FAIL');
+  }
   const errs = [host, ...joiners].flatMap((p) => p.errs);
   console.log('errors:', errs.length ? errs : 'none');
-  console.log(res && res.sc.reduce((a, c) => a + c, 0) >= 1 && loadoutsOk && modeOk && !errs.length ? 'RESULT: PASS - round resolved and synced' : 'RESULT: FAIL');
+  console.log(res && res.sc.reduce((a, c) => a + c, 0) >= 1 && loadoutsOk && modeOk && fatOk && !errs.length ? 'RESULT: PASS - round resolved and synced, multiplayer fatality works' : 'RESULT: FAIL');
   await b.close();
 })().catch((e) => { console.error('FAILED', e); process.exit(1); });
