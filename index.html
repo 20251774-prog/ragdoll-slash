@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1b1420">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Ragdoll Slash</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="touch" class="hidden">
+  <button id="bPause" class="tb small" aria-label="Pause">II</button>
+  <div class="pad left">
+    <button class="tb" data-k="l" aria-label="Left">&#9664;</button>
+    <button class="tb" data-k="r" aria-label="Right">&#9654;</button>
+  </div>
+  <div class="pad right">
+    <button class="tb mid" data-k="d">Dash</button>
+    <button class="tb mid" data-k="b">Block</button>
+    <button class="tb" data-k="j">Jump</button>
+    <button class="tb big" data-k="a">Slash</button>
+  </div>
+</div>
+
+<div id="menu" class="screen">
+  <div class="panel">
+    <h1>Ragdoll <span>Slash</span></h1>
+    <p class="sub">Sword fights with floppy knights</p>
+    <button class="btn main" data-go="solo">Play vs computer</button>
+    <button class="btn" data-go="host">Host a game</button>
+    <button class="btn" data-go="join">Join a game</button>
+    <div class="row">
+      <button class="btn small" data-go="help">How to play with friends</button>
+      <button class="btn small" data-go="controls">Controls</button>
+    </div>
+    <p id="installHint" class="tiny">Works with no internet. Tip: in Chrome tap ⋮ then "Add to Home screen" / "Install".</p>
+  </div>
+</div>
+
+<div id="solo" class="screen hidden">
+  <div class="panel">
+    <h2>Play vs computer</h2>
+    <p>Pick how tough the computer is.</p>
+    <button class="btn" data-diff="easy">Easy</button>
+    <button class="btn main" data-diff="normal">Normal</button>
+    <button class="btn" data-diff="hard">Hard</button>
+    <button class="btn small back" data-go="menu">Back</button>
+  </div>
+</div>
+
+<div id="host" class="screen hidden">
+  <div class="panel wide">
+    <h2>Host a game</h2>
+    <div class="cols">
+      <div class="qrbox">
+        <canvas id="hostQR"></canvas>
+        <video id="hostVideo" class="hidden" playsinline muted></video>
+      </div>
+      <div class="side">
+        <p id="hostStep">Getting ready…</p>
+        <button id="hostScan" class="btn main hidden">Scan friend's code</button>
+        <button id="hostCopy" class="btn small hidden">Copy my code as text</button>
+        <button id="hostPasteBtn" class="btn small hidden">Paste friend's code</button>
+        <div id="hostPasteBox" class="hidden"><textarea id="hostPaste" placeholder="Paste friend's code here"></textarea><button id="hostPasteGo" class="btn small">Use this code</button></div>
+        <p id="hostPlayers" class="players"></p>
+        <button id="hostAdd" class="btn hidden">Add another player</button>
+        <button id="hostStart" class="btn main hidden">Start fight</button>
+        <p id="hostErr" class="err"></p>
+        <button class="btn small back" data-go="menu">Back</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="join" class="screen hidden">
+  <div class="panel wide">
+    <h2>Join a game</h2>
+    <div class="cols">
+      <div class="qrbox">
+        <video id="joinVideo" playsinline muted></video>
+        <canvas id="joinQR" class="hidden"></canvas>
+      </div>
+      <div class="side">
+        <p id="joinStep">Point your camera at the code on the host phone.</p>
+        <button id="joinCopy" class="btn small hidden">Copy my code as text</button>
+        <button id="joinPasteBtn" class="btn small">Paste host's code instead</button>
+        <div id="joinPasteBox" class="hidden"><textarea id="joinPaste" placeholder="Paste host's code here"></textarea><button id="joinPasteGo" class="btn small">Use this code</button></div>
+        <p id="joinErr" class="err"></p>
+        <button class="btn small back" data-go="menu">Back</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="help" class="screen hidden">
+  <div class="panel wide">
+    <h2>How to play with friends</h2>
+    <ol class="steps">
+      <li>The host turns on their phone's <b>Wi-Fi hotspot</b>. No internet or data is needed.</li>
+      <li>Friends connect to the host's hotspot Wi-Fi.</li>
+      <li>Everyone opens Ragdoll Slash.</li>
+      <li>The host taps <b>Host a game</b>. A code appears.</li>
+      <li>A friend taps <b>Join a game</b> and scans the host's code with the camera.</li>
+      <li>The friend's phone then shows its own code. The host taps <b>Scan friend's code</b> and scans it.</li>
+      <li>For more players (up to 4), the host taps <b>Add another player</b> and repeats steps 5 and 6.</li>
+      <li>The host taps <b>Start fight</b>.</li>
+    </ol>
+    <p class="tiny">If the camera does not work, use "Copy my code as text" and send it (for example by Bluetooth or a message), then use "Paste".</p>
+    <button class="btn small back" data-go="menu">Back</button>
+  </div>
+</div>
+
+<div id="controls" class="screen hidden">
+  <div class="panel wide">
+    <h2>Controls</h2>
+    <p><b>Phone:</b> hold the phone sideways. Left side: ◀ ▶ to move. Right side: <b>Slash</b> to swing (tap again quickly for a combo), <b>Jump</b>, <b>Block</b> (hold, face the enemy), <b>Dash</b>.</p>
+    <p><b>Keyboard:</b> A / D or arrows to move, W / Space / ↑ jump, J swing, K block, L or Shift dash, Esc pause.</p>
+    <p>Hit the head for extra damage. First to win 3 rounds wins the match.</p>
+    <button class="btn small back" data-go="menu">Back</button>
+  </div>
+</div>
+
+<div id="pause" class="screen hidden dim">
+  <div class="panel">
+    <h2>Paused</h2>
+    <button id="pResume" class="btn main">Resume</button>
+    <button id="pQuit" class="btn">Quit to menu</button>
+  </div>
+</div>
+
+<div id="over" class="screen hidden dim">
+  <div class="panel">
+    <h2 id="overTitle">Match over</h2>
+    <button id="oAgain" class="btn main">Play again</button>
+    <p id="oWait" class="hidden">Waiting for the host to start again…</p>
+    <button id="oMenu" class="btn">Menu</button>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+<div id="rotate" class="hidden"><div>↻<br>Turn your phone sideways</div></div>
+
+<script src="lib/planck.min.js"></script>
+<script src="lib/lz-string.min.js"></script>
+<script src="lib/jsQR.js"></script>
+<script src="lib/qrcode.js"></script>
+<script src="js/game.js"></script>
+<script src="js/render.js"></script>
+<script src="js/net.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
